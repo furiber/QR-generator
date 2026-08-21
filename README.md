@@ -32,8 +32,22 @@ network fetch. Re-run the inlining if the brand asset changes.
 Both formats are offered per code: **SVG** for print and **PNG** (1024×1024,
 rasterised in the browser) for anything that cannot take vector artwork. When a
 batch produces more than one code, **Download all** packs every passing code —
-both formats — into a single `aa-qr-codes.zip`, numbered so that two links sharing
-a campaign name cannot collide.
+both formats — into a single `aa-qr-codes.zip`.
+
+### Telling codes apart
+
+A QR code is unreadable to a human, so the destination travels with the file
+three ways:
+
+- **The file name is built from the URL**, not just the campaign:
+  `aa-qr_www_membership_spring-renewal_newsletter_email.svg` — host label, path,
+  campaign, source, medium. Two links from one campaign therefore never share a
+  name; the rare pair that differs only in a parameter the name omits (such as
+  `utm_content`) gets a `-2` suffix.
+- **The SVG carries the URL** in its `<title>` and `<desc>`, which never render
+  but show up as a browser tooltip, in a text editor and to screen readers.
+- **The ZIP contains `urls.csv`**, mapping each SVG and PNG back to its full URL
+  and UTM parameters.
 
 ## Local development
 

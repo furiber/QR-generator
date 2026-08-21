@@ -133,3 +133,12 @@ button:disabled { opacity: 0.55; cursor: progress; }
 .result .errors { margin-top: 12px; }
 .result .meta { margin: 0 0 14px; }
 .preview { border: none; padding: 8px 0; }
+
+.checks code {
+  font: 12px/1.5 ui-monospace, SFMono-Regular, Menlo, monospace;
+  background: #f2f3f5;
+  padding: 2px 6px;
+  border-radius: 4px;
+  color: var(--ink);
+  word-break: break-all;
+}

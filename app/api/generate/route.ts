@@ -50,6 +50,32 @@ async function checkNoRedirect(url: string): Promise<RedirectCheck> {
   return { ok: true };
 }
 
+/** Escapes text for inclusion in XML character data. */
+function escapeXml(value: string): string {
+  return value
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&apos;');
+}
+
+/**
+ * Records the encoded URL inside the SVG.
+ *
+ * A QR code on disk is unreadable to a human, so the destination goes in as
+ * <title>/<desc>: it never renders, but it shows up in a browser tooltip, in a
+ * text editor and to screen readers, which is the difference between a usable
+ * artwork handover and a folder of identical squares.
+ */
+function embedUrlMetadata(qrSvg: string, url: string): string {
+  const safe = escapeXml(url);
+  return qrSvg.replace(
+    /(<svg[^>]*>)/,
+    `$1<title>QR code for ${safe}</title><desc>${safe}</desc>`,
+  );
+}
+
 function embedLogo(qrSvg: string): string {
   const viewBox = qrSvg.match(/viewBox="0 0 (\d+(?:\.\d+)?) /);
   if (!viewBox) return qrSvg;
@@ -86,7 +112,7 @@ async function generateOne(input: string, includeLogo: boolean): Promise<Generat
   return {
     input,
     ok: true,
-    svg: includeLogo ? embedLogo(qrSvg) : qrSvg,
+    svg: embedUrlMetadata(includeLogo ? embedLogo(qrSvg) : qrSvg, validation.url),
     url: validation.url,
     utms: validation.utms,
   };

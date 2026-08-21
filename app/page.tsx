@@ -3,19 +3,14 @@
 import { useState } from 'react';
 import { zipSync, strToU8 } from 'fflate';
 import { parseUrlList } from '@/lib/validate';
+import { buildManifest, codeFileNames } from '@/lib/filename';
 
 type Result =
   | { input: string; ok: true; svg: string; url: string; utms: Record<string, string> }
   | { input: string; ok: false; errors: string[] };
 
 const PLACEHOLDER = `https://www.aa.co.nz/membership/?utm_source=newsletter&utm_medium=email&utm_campaign=spring-renewal
-https://www.aa.co.nz/insurance/car-insurance/?utm_source=poster&utm_medium=qr&utm_campaign=spring-renewal`;
-
-/** Turns the campaign name into a safe-ish file name, e.g. "aa-qr-spring-renewal". */
-function fileName(utms: Record<string, string>, extension: string, suffix?: number) {
-  const campaign = (utms.utm_campaign ?? 'code').replace(/[^a-z0-9-]+/gi, '-').toLowerCase();
-  return `aa-qr-${campaign}${suffix ? `-${suffix}` : ''}.${extension}`;
-}
+https://www.aa.co.nz/insurance/car-and-vehicle-insurance/?utm_source=poster&utm_medium=qr&utm_campaign=spring-renewal`;
 
 function download(blob: Blob, name: string) {
   const href = URL.createObjectURL(blob);
@@ -56,19 +51,25 @@ async function svgToPng(svg: string, size = 1024): Promise<Blob> {
 type Passing = Extract<Result, { ok: true }>;
 
 /**
- * Packs every passing code into one ZIP, each link contributing an SVG and a
- * PNG. Names are numbered so two links sharing a campaign cannot collide.
+ * Packs every passing code into one ZIP: an SVG and a PNG per link, plus a
+ * urls.csv manifest so the destination of each file is readable without opening
+ * or scanning it.
  */
-async function buildZip(passing: Passing[]): Promise<Blob> {
+async function buildZip(passing: Passing[], baseNames: string[]): Promise<Blob> {
   const files: Record<string, [Uint8Array, { level: 0 | 6 }]> = {};
 
   for (const [index, result] of passing.entries()) {
-    const suffix = passing.length > 1 ? index + 1 : undefined;
+    const baseName = baseNames[index];
     const png = await svgToPng(result.svg);
-    files[fileName(result.utms, 'svg', suffix)] = [strToU8(result.svg), { level: 6 }];
+    files[`${baseName}.svg`] = [strToU8(result.svg), { level: 6 }];
     // PNG is already compressed — deflating it again only costs time.
-    files[fileName(result.utms, 'png', suffix)] = [new Uint8Array(await png.arrayBuffer()), { level: 0 }];
+    files[`${baseName}.png`] = [new Uint8Array(await png.arrayBuffer()), { level: 0 }];
   }
+
+  const manifest = buildManifest(
+    passing.map((result, index) => ({ baseName: baseNames[index], url: result.url })),
+  );
+  files['urls.csv'] = [strToU8(manifest), { level: 6 }];
 
   return new Blob([zipSync(files)], { type: 'application/zip' });
 }
@@ -83,10 +84,10 @@ export default function Page() {
 
   const urls = parseUrlList(input);
   const passing = results.filter((result): result is Passing => result.ok);
-  // Numbered only when there is more than one code, and numbered by position
-  // among the passing links so a single download matches its name in the ZIP.
-  const suffixFor = (result: Passing) =>
-    passing.length > 1 ? passing.indexOf(result) + 1 : undefined;
+  // Named once for the whole batch so an individual download and its copy in
+  // the ZIP always agree, including the -2 suffix applied to any collision.
+  const baseNames = codeFileNames(passing.map((result) => result.url));
+  const baseNameFor = (result: Passing) => baseNames[passing.indexOf(result)];
 
   async function generate(event: React.FormEvent) {
     event.preventDefault();
@@ -171,7 +172,7 @@ export default function Page() {
                 onClick={async () => {
                   setZipping(true);
                   try {
-                    download(await buildZip(passing), 'aa-qr-codes.zip');
+                    download(await buildZip(passing, baseNames), 'aa-qr-codes.zip');
                   } catch (err) {
                     setError((err as Error).message);
                   } finally {
@@ -207,7 +208,7 @@ export default function Page() {
                       onClick={() =>
                         download(
                           new Blob([result.svg], { type: 'image/svg+xml' }),
-                          fileName(result.utms, 'svg', suffixFor(result)),
+                          `${baseNameFor(result)}.svg`,
                         )
                       }
                     >
@@ -220,7 +221,7 @@ export default function Page() {
                         try {
                           download(
                             await svgToPng(result.svg),
-                            fileName(result.utms, 'png', suffixFor(result)),
+                            `${baseNameFor(result)}.png`,
                           );
                         } catch (err) {
                           setError((err as Error).message);
@@ -240,6 +241,9 @@ export default function Page() {
 
                   <ul className="checks">
                     <li>Returned HTTP 200 with no redirect</li>
+                    <li>
+                      File name: <code>{baseNameFor(result)}</code>
+                    </li>
                     <li>
                       Tracking:{' '}
                       {Object.entries(result.utms)
