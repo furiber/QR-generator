@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { zipSync, strToU8 } from 'fflate';
 import { parseUrlList } from '@/lib/validate';
 
 type Result =
@@ -52,15 +53,40 @@ async function svgToPng(svg: string, size = 1024): Promise<Blob> {
   }
 }
 
+type Passing = Extract<Result, { ok: true }>;
+
+/**
+ * Packs every passing code into one ZIP, each link contributing an SVG and a
+ * PNG. Names are numbered so two links sharing a campaign cannot collide.
+ */
+async function buildZip(passing: Passing[]): Promise<Blob> {
+  const files: Record<string, [Uint8Array, { level: 0 | 6 }]> = {};
+
+  for (const [index, result] of passing.entries()) {
+    const suffix = passing.length > 1 ? index + 1 : undefined;
+    const png = await svgToPng(result.svg);
+    files[fileName(result.utms, 'svg', suffix)] = [strToU8(result.svg), { level: 6 }];
+    // PNG is already compressed — deflating it again only costs time.
+    files[fileName(result.utms, 'png', suffix)] = [new Uint8Array(await png.arrayBuffer()), { level: 0 }];
+  }
+
+  return new Blob([zipSync(files)], { type: 'application/zip' });
+}
+
 export default function Page() {
   const [input, setInput] = useState('');
   const [includeLogo, setIncludeLogo] = useState(true);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
+  const [zipping, setZipping] = useState(false);
   const [results, setResults] = useState<Result[]>([]);
 
   const urls = parseUrlList(input);
-  const passed = results.filter((result) => result.ok).length;
+  const passing = results.filter((result): result is Passing => result.ok);
+  // Numbered only when there is more than one code, and numbered by position
+  // among the passing links so a single download matches its name in the ZIP.
+  const suffixFor = (result: Passing) =>
+    passing.length > 1 ? passing.indexOf(result) + 1 : undefined;
 
   async function generate(event: React.FormEvent) {
     event.preventDefault();
@@ -133,11 +159,32 @@ export default function Page() {
 
       {results.length > 0 && (
         <>
-          <p className="summary">
-            {passed} of {results.length} link{results.length === 1 ? '' : 's'} passed.
-          </p>
+          <div className="summary">
+            <span>
+              {passing.length} of {results.length} link{results.length === 1 ? '' : 's'} passed.
+            </span>
+            {passing.length > 1 && (
+              <button
+                className="secondary"
+                type="button"
+                disabled={zipping}
+                onClick={async () => {
+                  setZipping(true);
+                  try {
+                    download(await buildZip(passing), 'aa-qr-codes.zip');
+                  } catch (err) {
+                    setError((err as Error).message);
+                  } finally {
+                    setZipping(false);
+                  }
+                }}
+              >
+                {zipping ? 'Packing…' : `Download all ${passing.length} (SVG + PNG, .zip)`}
+              </button>
+            )}
+          </div>
 
-          {results.map((result, index) => (
+          {results.map((result) => (
             <section className="result card" key={result.input}>
               <p className="meta">{result.input}</p>
 
@@ -160,7 +207,7 @@ export default function Page() {
                       onClick={() =>
                         download(
                           new Blob([result.svg], { type: 'image/svg+xml' }),
-                          fileName(result.utms, 'svg', results.length > 1 ? index + 1 : undefined),
+                          fileName(result.utms, 'svg', suffixFor(result)),
                         )
                       }
                     >
@@ -173,7 +220,7 @@ export default function Page() {
                         try {
                           download(
                             await svgToPng(result.svg),
-                            fileName(result.utms, 'png', results.length > 1 ? index + 1 : undefined),
+                            fileName(result.utms, 'png', suffixFor(result)),
                           );
                         } catch (err) {
                           setError((err as Error).message);

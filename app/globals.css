@@ -117,7 +117,17 @@ button:disabled { opacity: 0.55; cursor: progress; }
 }
 .check input { width: 17px; height: 17px; accent-color: var(--yellow); cursor: pointer; }
 
-.summary { margin: 28px 0 12px; font-weight: 600; font-size: 14px; }
+.summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+  margin: 28px 0 12px;
+  font-weight: 600;
+  font-size: 14px;
+}
+.summary button { font-size: 14px; padding: 9px 16px; }
 
 .result.card { margin-bottom: 16px; }
 .result .errors { margin-top: 12px; }

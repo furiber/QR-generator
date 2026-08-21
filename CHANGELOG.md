@@ -11,6 +11,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Paste a list of URLs, one per line (up to 50), and get a result card per link.
 - Checkbox to include or omit the AA logo in the generated code.
+- Download all: packs every passing code in a batch, SVG and PNG, into one ZIP.
 
 ### Changed
 

@@ -29,8 +29,11 @@ The logo ships with the app: `assets/aa-logo.svg` is vendored from the AA brand
 library and inlined as a data URI in `lib/logo.ts`, so generation never depends on a
 network fetch. Re-run the inlining if the brand asset changes.
 
-Both formats are offered: **SVG** for print and **PNG** (1024×1024, rasterised in
-the browser) for anything that cannot take vector artwork.
+Both formats are offered per code: **SVG** for print and **PNG** (1024×1024,
+rasterised in the browser) for anything that cannot take vector artwork. When a
+batch produces more than one code, **Download all** packs every passing code —
+both formats — into a single `aa-qr-codes.zip`, numbered so that two links sharing
+a campaign name cannot collide.
 
 ## Local development
 
