@@ -1,38 +1,26 @@
 import { NextResponse } from 'next/server';
 import QRCode from 'qrcode';
 import { validateUrl } from '@/lib/validate';
+import { AA_LOGO_DATA_URI } from '@/lib/logo';
 
 /**
- * Validates a campaign URL and returns a branded QR code for it.
+ * Validates campaign URLs and returns a QR code for each one that passes.
  *
- * Three gates, in order: the URL must satisfy the rules in lib/validate.ts,
- * it must answer 200 without redirecting (a QR code is printed and cannot be
+ * Three gates, in order: the URL must satisfy the rules in lib/validate.ts, it
+ * must answer 200 without redirecting (a QR code is printed and cannot be
  * re-pointed later, so a redirect chain is a defect worth blocking), and only
  * then is the SVG generated.
  */
-
-const LOGO_URL =
-  'https://www.aa.co.nz/content/dam/nzaa/01-brand/brand-assets/logos/primary/logo.svg';
 
 const QR_SIZE = 1024;
 // Fraction of the QR width covered by the logo plate. Error correction level H
 // recovers ~30% of the modules, so this leaves plenty of headroom.
 const LOGO_FRACTION = 0.22;
+const MAX_URLS = 50;
 
-let cachedLogo: string | null = null;
-
-async function getLogoDataUri(): Promise<string | null> {
-  if (cachedLogo) return cachedLogo;
-  try {
-    const res = await fetch(LOGO_URL, { cache: 'force-cache' });
-    if (!res.ok) return null;
-    const svg = await res.text();
-    cachedLogo = `data:image/svg+xml;base64,${Buffer.from(svg).toString('base64')}`;
-    return cachedLogo;
-  } catch {
-    return null;
-  }
-}
+export type GenerateResult =
+  | { input: string; ok: true; svg: string; url: string; utms: Record<string, string> }
+  | { input: string; ok: false; errors: string[] };
 
 type RedirectCheck = { ok: true } | { ok: false; error: string };
 
@@ -62,7 +50,7 @@ async function checkNoRedirect(url: string): Promise<RedirectCheck> {
   return { ok: true };
 }
 
-function embedLogo(qrSvg: string, logoDataUri: string): string {
+function embedLogo(qrSvg: string): string {
   const viewBox = qrSvg.match(/viewBox="0 0 (\d+(?:\.\d+)?) /);
   if (!viewBox) return qrSvg;
 
@@ -73,43 +61,58 @@ function embedLogo(qrSvg: string, logoDataUri: string): string {
 
   const overlay =
     `<rect x="${offset - pad}" y="${offset - pad}" width="${plate + pad * 2}" height="${plate + pad * 2}" rx="${pad}" fill="#ffffff"/>` +
-    `<image x="${offset}" y="${offset}" width="${plate}" height="${plate}" preserveAspectRatio="xMidYMid meet" href="${logoDataUri}"/>`;
+    `<image x="${offset}" y="${offset}" width="${plate}" height="${plate}" preserveAspectRatio="xMidYMid meet" href="${AA_LOGO_DATA_URI}"/>`;
 
   return qrSvg.replace('</svg>', `${overlay}</svg>`);
 }
 
-export async function POST(request: Request) {
-  let body: { url?: string };
-  try {
-    body = await request.json();
-  } catch {
-    return NextResponse.json({ errors: ['Invalid request body.'] }, { status: 400 });
-  }
-
-  const validation = validateUrl(body.url ?? '');
-  if (!validation.ok) {
-    return NextResponse.json({ errors: validation.errors }, { status: 400 });
-  }
+async function generateOne(input: string, includeLogo: boolean): Promise<GenerateResult> {
+  const validation = validateUrl(input);
+  if (!validation.ok) return { input, ok: false, errors: validation.errors };
 
   const redirectCheck = await checkNoRedirect(validation.url);
-  if (!redirectCheck.ok) {
-    return NextResponse.json({ errors: [redirectCheck.error] }, { status: 400 });
-  }
+  if (!redirectCheck.ok) return { input, ok: false, errors: [redirectCheck.error] };
 
   const qrSvg = await QRCode.toString(validation.url, {
     type: 'svg',
+    // Level H is kept even without the logo so a code stays readable when it is
+    // printed small, scuffed or photographed at an angle.
     errorCorrectionLevel: 'H',
     margin: 2,
     width: QR_SIZE,
     color: { dark: '#000000', light: '#ffffff' },
   });
 
-  const logo = await getLogoDataUri();
-
-  return NextResponse.json({
-    svg: logo ? embedLogo(qrSvg, logo) : qrSvg,
+  return {
+    input,
+    ok: true,
+    svg: includeLogo ? embedLogo(qrSvg) : qrSvg,
     url: validation.url,
     utms: validation.utms,
-    warnings: logo ? [] : ['AA logo could not be fetched — QR code generated without it.'],
-  });
+  };
+}
+
+export async function POST(request: Request) {
+  let body: { urls?: unknown; includeLogo?: unknown };
+  try {
+    body = await request.json();
+  } catch {
+    return NextResponse.json({ error: 'Invalid request body.' }, { status: 400 });
+  }
+
+  const urls = Array.isArray(body.urls) ? body.urls.filter((u): u is string => typeof u === 'string') : [];
+  if (urls.length === 0) {
+    return NextResponse.json({ error: 'Enter at least one URL.' }, { status: 400 });
+  }
+  if (urls.length > MAX_URLS) {
+    return NextResponse.json(
+      { error: `Too many URLs — ${MAX_URLS} at a time, got ${urls.length}.` },
+      { status: 400 },
+    );
+  }
+
+  const includeLogo = body.includeLogo !== false;
+  const results = await Promise.all(urls.map((url) => generateOne(url, includeLogo)));
+
+  return NextResponse.json({ results });
 }

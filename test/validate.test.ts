@@ -35,3 +35,14 @@ test('rejects an empty utm value', () => {
 test('rejects junk input', () => {
   assert.equal(validateUrl('not a url').ok, false);
 });
+
+test('parses a pasted list, dropping blanks and duplicates', async () => {
+  const { parseUrlList } = await import('../lib/validate.ts');
+  const parsed = parseUrlList(`  ${good}  \r\n\n${good}\n${good.replace('www.', 'insurance.')}\n`);
+  assert.deepEqual(parsed, [good, good.replace('www.', 'insurance.')]);
+});
+
+test('parses an empty block to an empty list', async () => {
+  const { parseUrlList } = await import('../lib/validate.ts');
+  assert.deepEqual(parseUrlList('\n  \n'), []);
+});

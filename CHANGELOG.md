@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Paste a list of URLs, one per line (up to 50), and get a result card per link.
+- Checkbox to include or omit the AA logo in the generated code.
+
+### Changed
+
+- The AA logo now ships with the app instead of being fetched from aa.co.nz at
+  request time, so generation no longer depends on an outbound fetch for artwork.
+
 ## [0.1.0] - 2026-08-22
 
 ### Added

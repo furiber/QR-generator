@@ -3,6 +3,8 @@
 Generates branded QR codes for AA marketing links. A code is only produced once the
 URL passes every check, because a printed QR code cannot be corrected later.
 
+Paste one URL per line — up to 50 at a time — and each is checked independently.
+
 ## Checks
 
 1. **Valid https URL** — anything else is rejected outright.
@@ -18,9 +20,14 @@ URL passes every check, because a printed QR code cannot be corrected later.
 
 ## Output
 
-The QR code is produced server-side as SVG at error correction level H, with the
-[AA primary logo](https://www.aa.co.nz/content/dam/nzaa/01-brand/brand-assets/logos/primary/logo.svg)
-embedded over the centre 22% — well inside the ~30% the H level can recover.
+The QR code is produced server-side as SVG at error correction level H. When the
+**Include the AA logo** box is ticked (the default) the AA primary logo is placed
+over the centre 22% — well inside the ~30% the H level can recover. Untick it for a
+plain black-and-white code.
+
+The logo ships with the app: `assets/aa-logo.svg` is vendored from the AA brand
+library and inlined as a data URI in `lib/logo.ts`, so generation never depends on a
+network fetch. Re-run the inlining if the brand asset changes.
 
 Both formats are offered: **SVG** for print and **PNG** (1024×1024, rasterised in
 the browser) for anything that cannot take vector artwork.
@@ -45,5 +52,5 @@ external services, so it deploys as-is:
 vercel deploy
 ```
 
-The redirect check and the logo fetch both run in the Vercel Function backing
-`/api/generate`, which needs outbound network access to `aa.co.nz` — the default.
+The redirect check runs in the Vercel Function backing `/api/generate`, which needs
+outbound network access to `aa.co.nz` — the default.

@@ -56,3 +56,13 @@ export function validateUrl(raw: string): ValidationResult {
   if (errors.length) return { ok: false, errors };
   return { ok: true, url: url.toString(), hostname, utms };
 }
+
+/** Splits a pasted block into one URL per line, dropping blanks and duplicates. */
+export function parseUrlList(raw: string): string[] {
+  const seen = new Set<string>();
+  for (const line of (raw ?? '').split(/\r?\n/)) {
+    const trimmed = line.trim();
+    if (trimmed) seen.add(trimmed);
+  }
+  return [...seen];
+}
