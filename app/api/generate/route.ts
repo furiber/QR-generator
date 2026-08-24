@@ -87,7 +87,9 @@ async function generateOne(
     errorCorrectionLevel: 'H',
     margin: 2,
     width: QR_SIZE,
-    color: { dark: '#000000', light: '#ffffff' },
+    // Alpha 0 on the light colour omits the background path entirely, so the
+    // SVG is transparent and can sit on any print colour.
+    color: { dark: '#000000', light: '#0000' },
   });
 
   return {

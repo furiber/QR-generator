@@ -21,6 +21,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Generated SVG has no background fill (and the PNG export keeps that
+  transparency), so a code can sit on any print colour. The AA logo still sits
+  on a small white plate.
 - Downloaded files are named from the URL — host, path, campaign, source and
   medium — instead of the campaign alone, which gave every link in a campaign a
   near-identical name. The file name for a code is shown on its result card.

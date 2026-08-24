@@ -34,8 +34,6 @@ async function svgToPng(svg: string, size = 1024): Promise<Blob> {
     const canvas = document.createElement('canvas');
     canvas.width = canvas.height = size;
     const context = canvas.getContext('2d')!;
-    context.fillStyle = '#ffffff';
-    context.fillRect(0, 0, size, size);
     context.drawImage(image, 0, 0, size, size);
     return await new Promise<Blob>((resolve, reject) =>
       canvas.toBlob(
