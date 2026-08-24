@@ -12,11 +12,16 @@ Paste one URL per line — up to 50 at a time — and each is checked independen
 3. **UTM parameters** — `utm_source`, `utm_medium` and `utm_campaign` must all be
    present and non-empty. `utm_term`, `utm_content` and `utm_id` are passed through
    when supplied.
-4. **No redirects** — the URL is fetched with redirects disabled and must return
-   HTTP 200. This matters: `https://www.aa.co.nz/membership?utm_source=…` returns a
-   301 to `https://www.aa.co.nz/membership/` **without** the query string, so the
-   tracking parameters are silently lost. The generator blocks that case and tells
-   you to use the final destination URL.
+4. **No redirects / no 404s** — the URL is fetched with redirects disabled and must
+   return HTTP 200. This matters: `https://www.aa.co.nz/membership?utm_source=…`
+   returns a 301 to `https://www.aa.co.nz/membership/` **without** the query string,
+   so the tracking parameters are silently lost. The generator blocks that case and
+   tells you to use the final destination URL.
+
+Tick **Disable 404 check** to skip step 4. Domain and UTM rules still apply, but the
+URL is not fetched, so a code is generated even if the page 404s, redirects, or is
+not live yet. Use this for links that have not been published; a printed code still
+cannot be re-pointed later.
 
 ## Output
 
@@ -70,4 +75,5 @@ vercel deploy
 ```
 
 The redirect check runs in the Vercel Function backing `/api/generate`, which needs
-outbound network access to `aa.co.nz` — the default.
+outbound network access to `aa.co.nz` — the default. Skipping the live check with
+the checkbox avoids that fetch entirely.

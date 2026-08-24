@@ -11,6 +11,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Paste a list of URLs, one per line (up to 50), and get a result card per link.
 - Checkbox to include or omit the AA logo in the generated code.
+- Checkbox to disable the live 404 / HTTP check so a QR code can still be
+  generated when the destination is not live yet, redirects, or is unreachable.
+  Domain and UTM validation still run. The form and each result card state when
+  the check was skipped.
 - Download all: packs every passing code in a batch, SVG and PNG, into one ZIP,
   alongside a `urls.csv` manifest mapping every file to the URL it encodes.
 - The encoded URL is recorded in each SVG's `<title>` and `<desc>`.
