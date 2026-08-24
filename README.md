@@ -25,10 +25,11 @@ cannot be re-pointed later.
 
 ## Output
 
-The QR code is produced server-side as SVG at error correction level H. When the
-**Include the AA logo** box is ticked (the default) the AA primary logo is placed
-over the centre 22% — well inside the ~30% the H level can recover. Untick it for a
-plain black-and-white code.
+The QR code is produced server-side as SVG at error correction level H, with no
+background fill so it can sit on any print colour. When the **Include the AA logo**
+box is ticked (the default) the AA primary logo is placed over the centre 22% —
+well inside the ~30% the H level can recover — on a small white plate. Untick it
+for a plain black code.
 
 The logo ships with the app: `assets/aa-logo.svg` is vendored from the AA brand
 library and inlined as a data URI in `lib/logo.ts`, so generation never depends on a
