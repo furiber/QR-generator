@@ -2,14 +2,17 @@ import { NextResponse } from 'next/server';
 import QRCode from 'qrcode';
 import { validateUrl } from '@/lib/validate';
 import { AA_LOGO_DATA_URI } from '@/lib/logo';
+import { checkLiveUrl } from '@/lib/live-check';
 
 /**
  * Validates campaign URLs and returns a QR code for each one that passes.
  *
- * Three gates, in order: the URL must satisfy the rules in lib/validate.ts, it
- * must answer 200 without redirecting (a QR code is printed and cannot be
- * re-pointed later, so a redirect chain is a defect worth blocking), and only
- * then is the SVG generated.
+ * Two gates always run: the URL must satisfy the rules in lib/validate.ts, and
+ * only then is the SVG generated. A third gate — the live HTTP check — fetches
+ * the URL with redirects disabled and requires HTTP 200. That check can be
+ * skipped with `skipLiveCheck` when a code is needed for a URL that is not
+ * live yet (a printed QR still cannot be re-pointed later, so skipping is an
+ * explicit opt-out).
  */
 
 const QR_SIZE = 1024;
@@ -22,42 +25,14 @@ export type GenerateResult =
   | { input: string; ok: true; svg: string; url: string; utms: Record<string, string> }
   | { input: string; ok: false; errors: string[] };
 
-type RedirectCheck = { ok: true } | { ok: false; error: string };
-
-async function checkNoRedirect(url: string): Promise<RedirectCheck> {
-  let res: Response;
-  try {
-    res = await fetch(url, {
-      method: 'GET',
-      redirect: 'manual',
-      cache: 'no-store',
-      headers: { 'user-agent': 'AA-QR-Generator/1.0 (+link check)' },
-    });
-  } catch (err) {
-    return { ok: false, error: `Could not reach the URL: ${(err as Error).message}` };
-  }
-
-  if (res.status >= 300 && res.status < 400) {
-    const location = res.headers.get('location');
-    return {
-      ok: false,
-      error: `URL redirects (HTTP ${res.status})${location ? ` to ${location}` : ''}. Use the final destination URL instead.`,
-    };
-  }
-  if (res.status !== 200) {
-    return { ok: false, error: `URL returned HTTP ${res.status}, expected 200.` };
-  }
-  return { ok: true };
-}
-
 /** Escapes text for inclusion in XML character data. */
 function escapeXml(value: string): string {
   return value
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&apos;');
+    .replace(/&/g, '\u0026amp;')
+    .replace(/</g, '\u0026lt;')
+    .replace(/>/g, '\u0026gt;')
+    .replace(/"/g, '\u0026quot;')
+    .replace(/'/g, '\u0026apos;');
 }
 
 /**
@@ -92,12 +67,18 @@ function embedLogo(qrSvg: string): string {
   return qrSvg.replace('</svg>', `${overlay}</svg>`);
 }
 
-async function generateOne(input: string, includeLogo: boolean): Promise<GenerateResult> {
+async function generateOne(
+  input: string,
+  includeLogo: boolean,
+  skipLiveCheck: boolean,
+): Promise<GenerateResult> {
   const validation = validateUrl(input);
   if (!validation.ok) return { input, ok: false, errors: validation.errors };
 
-  const redirectCheck = await checkNoRedirect(validation.url);
-  if (!redirectCheck.ok) return { input, ok: false, errors: [redirectCheck.error] };
+  if (!skipLiveCheck) {
+    const liveCheck = await checkLiveUrl(validation.url);
+    if (!liveCheck.ok) return { input, ok: false, errors: [liveCheck.error] };
+  }
 
   const qrSvg = await QRCode.toString(validation.url, {
     type: 'svg',
@@ -119,7 +100,7 @@ async function generateOne(input: string, includeLogo: boolean): Promise<Generat
 }
 
 export async function POST(request: Request) {
-  let body: { urls?: unknown; includeLogo?: unknown };
+  let body: { urls?: unknown; includeLogo?: unknown; skipLiveCheck?: unknown };
   try {
     body = await request.json();
   } catch {
@@ -138,7 +119,8 @@ export async function POST(request: Request) {
   }
 
   const includeLogo = body.includeLogo !== false;
-  const results = await Promise.all(urls.map((url) => generateOne(url, includeLogo)));
+  const skipLiveCheck = body.skipLiveCheck === true;
+  const results = await Promise.all(urls.map((url) => generateOne(url, includeLogo, skipLiveCheck)));
 
   return NextResponse.json({ results });
 }

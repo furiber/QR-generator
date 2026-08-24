@@ -77,6 +77,7 @@ async function buildZip(passing: Passing[], baseNames: string[]): Promise<Blob> 
 export default function Page() {
   const [input, setInput] = useState('');
   const [includeLogo, setIncludeLogo] = useState(true);
+  const [skipLiveCheck, setSkipLiveCheck] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [zipping, setZipping] = useState(false);
@@ -98,7 +99,7 @@ export default function Page() {
       const response = await fetch('/api/generate', {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ urls, includeLogo }),
+        body: JSON.stringify({ urls, includeLogo, skipLiveCheck }),
       });
       const data = await response.json();
       if (!response.ok) setError(data.error ?? 'Something went wrong.');
@@ -111,7 +112,9 @@ export default function Page() {
   }
 
   const buttonLabel = busy
-    ? 'Checking links…'
+    ? skipLiveCheck
+      ? 'Generating…'
+      : 'Checking links…'
     : urls.length > 1
       ? `Generate ${urls.length} QR codes`
       : 'Generate QR code';
@@ -121,7 +124,7 @@ export default function Page() {
       <h1>AA QR Code Generator</h1>
       <p className="lede">
         Paste one UTM-tagged aa.co.nz link per line. Each is checked for the required tracking
-        parameters and for redirects before a QR code is produced.
+        parameters. A live HTTP check (no 404s, no redirects) runs unless you skip it.
       </p>
 
       <form className="card" onSubmit={generate}>
@@ -138,14 +141,31 @@ export default function Page() {
           utm_campaign. Up to 50 links at a time.
         </p>
 
-        <label className="check">
-          <input
-            type="checkbox"
-            checked={includeLogo}
-            onChange={(event) => setIncludeLogo(event.target.checked)}
-          />
-          Include the AA logo in the centre of the code
-        </label>
+        <div className="options">
+          <label className="check">
+            <input
+              type="checkbox"
+              checked={includeLogo}
+              onChange={(event) => setIncludeLogo(event.target.checked)}
+            />
+            Include the AA logo in the centre of the code
+          </label>
+
+          <label className="check">
+            <input
+              type="checkbox"
+              checked={skipLiveCheck}
+              onChange={(event) => setSkipLiveCheck(event.target.checked)}
+            />
+            Disable 404 check — generate even if the URL is not live
+          </label>
+        </div>
+        {skipLiveCheck && (
+          <p className="hint skip-hint">
+            The destination will not be fetched. QR codes are produced even if the page 404s,
+            redirects, or is unreachable. A printed code still cannot be corrected later.
+          </p>
+        )}
 
         <button className="primary" type="submit" disabled={busy || urls.length === 0}>
           {buttonLabel}
@@ -184,6 +204,12 @@ export default function Page() {
               </button>
             )}
           </div>
+
+          {skipLiveCheck && passing.length > 0 && (
+            <div className="warnings" role="status">
+              Live HTTP check was skipped. These codes were not verified as reachable.
+            </div>
+          )}
 
           {results.map((result) => (
             <section className="result card" key={result.input}>
@@ -240,7 +266,11 @@ export default function Page() {
                   </div>
 
                   <ul className="checks">
-                    <li>Returned HTTP 200 with no redirect</li>
+                    <li>
+                      {skipLiveCheck
+                        ? 'Live HTTP check skipped'
+                        : 'Returned HTTP 200 with no redirect'}
+                    </li>
                     <li>
                       File name: <code>{baseNameFor(result)}</code>
                     </li>
